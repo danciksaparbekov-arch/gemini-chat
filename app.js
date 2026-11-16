@@ -52,9 +52,9 @@
     store.del("gc-key");
     if (key) store.set("gc-key", key, persist);
   }
-  // API не сообщает цену, поэтому «бесплатные» определяем по имени: Flash / Flash-Lite / Gemma.
+  // API не сообщает цену, поэтому «бесплатные» определяем по имени: Flash / Flash-Lite / Gemma / Hydrogen.
   // Исключаем Pro, генерацию картинок/видео/музыки, голос, Live, Computer Use, эмбеддинги.
-  const isFree = name => /(flash|gemma)/i.test(name) &&
+  const isFree = name => /(flash|gemma|hydrogen)/i.test(name) &&
     !/(pro|image|imagen|veo|lyria|tts|audio|live|native|computer|embedding|robotics|omni)/i.test(name);
   async function loadModels() {
     if (!key) { sel.disabled = true; sel.innerHTML = "<option>Сначала введите ключ</option>"; return; }
