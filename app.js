@@ -52,6 +52,10 @@
     store.del("gc-key");
     if (key) store.set("gc-key", key, persist);
   }
+  // API не сообщает цену, поэтому «бесплатные» определяем по имени: Flash / Flash-Lite / Gemma.
+  // Исключаем Pro, генерацию картинок/видео/музыки, голос, Live, Computer Use, эмбеддинги.
+  const isFree = name => /(flash|gemma)/i.test(name) &&
+    !/(pro|image|imagen|veo|lyria|tts|audio|live|native|computer|embedding|robotics|omni)/i.test(name);
   async function loadModels() {
     if (!key) { sel.disabled = true; sel.innerHTML = "<option>Сначала введите ключ</option>"; return; }
     sel.disabled = true; sel.innerHTML = "<option>Загрузка моделей…</option>";
@@ -63,9 +67,9 @@
         if (!r.ok) throw new Error((d.error && d.error.message) || "HTTP " + r.status);
         models = models.concat(d.models || []); token = d.nextPageToken || "";
       } while (token);
-      models = models.filter(m => (m.supportedGenerationMethods || []).includes("generateContent") && /gemini|gemma/i.test(m.name))
+      models = models.filter(m => (m.supportedGenerationMethods || []).includes("generateContent") && isFree(m.name))
         .sort((a, b) => b.name.localeCompare(a.name));
-      if (!models.length) throw new Error("нет доступных моделей");
+      if (!models.length) throw new Error("нет бесплатных моделей");
       sel.innerHTML = "";
       models.forEach(m => { const o = document.createElement("option"); o.value = m.name.replace(/^models\//, ""); o.textContent = (m.displayName || o.value) + " — " + o.value; sel.appendChild(o); });
       const saved = store.get("gc-model");
