@@ -1,0 +1,44 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Gemini Chat</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<header class="top">
+  <strong>Gemini Chat</strong>
+  <select id="model" title="Модель" disabled><option>Сначала введите ключ</option></select>
+  <button id="refresh" class="ghost" title="Обновить список моделей">⟳</button>
+  <span class="spacer"></span>
+  <button id="key-btn" class="ghost">🔑 Ключ</button>
+  <button id="clear" class="ghost">Очистить</button>
+</header>
+
+<dialog id="key-dlg">
+  <form method="dialog" id="key-form">
+    <h3>Ключ Gemini API</h3>
+    <p>Получите бесплатно на <a href="https://aistudio.google.com/apikey" target="_blank" rel="noopener">aistudio.google.com/apikey</a>.
+    Ключ хранится только в вашем браузере и отправляется напрямую в Google — на сервер сайта он не попадает.</p>
+    <input id="key-input" type="password" placeholder="AIza…" autocomplete="off" spellcheck="false">
+    <label class="chk"><input type="checkbox" id="key-remember" checked> Запомнить в этом браузере</label>
+    <div class="row"><button value="cancel" class="ghost">Отмена</button><button value="ok" id="key-ok">Сохранить</button></div>
+  </form>
+</dialog>
+
+<main id="log" aria-live="polite"></main>
+
+<div id="drop" hidden>Отпустите, чтобы прикрепить изображение</div>
+<footer>
+  <div id="thumbs"></div>
+  <form id="form">
+    <button type="button" id="attach" class="ghost" title="Прикрепить изображение">📎</button>
+    <input type="file" id="file" accept="image/*" multiple hidden>
+    <textarea id="input" rows="1" placeholder="Сообщение… (Enter — отправить, Shift+Enter — перенос, Ctrl+V — вставить скриншот)"></textarea>
+    <button id="send">➤</button>
+  </form>
+</footer>
+<script src="app.js"></script>
+</body>
+</html>
