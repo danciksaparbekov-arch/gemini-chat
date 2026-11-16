@@ -5,6 +5,9 @@ html,body{height:100%;margin:0}
 body{display:flex;flex-direction:column;background:var(--bg);color:var(--fg);font:16px/1.5 system-ui,sans-serif}
 .top{display:flex;gap:8px;align-items:center;padding:10px 14px;border-bottom:1px solid var(--bd)}
 .spacer{flex:1}
+.top{flex-wrap:wrap}
+.opt{font-size:14px;white-space:nowrap}
+.msg .meta a{color:var(--acc)}
 select,input,textarea,button{font:inherit;color:inherit}
 select{max-width:46vw;padding:6px;border:1px solid var(--bd);border-radius:8px;background:var(--bg)}
 button{padding:6px 12px;border:0;border-radius:8px;background:var(--acc);color:#fff;cursor:pointer}

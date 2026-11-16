@@ -33,7 +33,54 @@
     return out.join("");
   }
 
-  function bubble(role, text, cls, images, meta) {
+  // --- режимы, системный промпт и база знаний (kb/) ---
+  const modeSel = $("mode"), searchChk = $("search");
+  let sysText = null, kbChunks = null;
+  async function loadText(url) {
+    const r = await fetch(url, { cache: "no-cache" });
+    if (!r.ok) throw new Error(url + ": HTTP " + r.status);
+    return r.text();
+  }
+  async function getSystem() {
+    if (sysText === null) { try { sysText = await loadText("prompts/3dsmax.md"); } catch (e) { sysText = ""; } }
+    return sysText;
+  }
+  // Стем по префиксу — грубо, но работает для русского и английского без словарей
+  const stems = s => (String(s).toLowerCase().match(/[\p{L}\p{N}]{2,}/gu) || []).map(w => w.slice(0, 5));
+  async function getChunks() {
+    if (kbChunks) return kbChunks;
+    kbChunks = [];
+    try {
+      const idx = JSON.parse(await loadText("kb/index.json"));
+      for (const f of idx.files || []) {
+        let txt = "";
+        try { txt = await loadText("kb/" + f.file); } catch (e) { continue; }
+        for (const part of txt.split(/^## /m).slice(1)) {
+          const nl = part.indexOf("\n");
+          const head = (nl < 0 ? part : part.slice(0, nl)).trim();
+          const body = nl < 0 ? "" : part.slice(nl + 1).trim();
+          if (!body) continue;
+          kbChunks.push({ title: (f.title || f.file) + " → " + head, text: body, head: new Set(stems(head)), set: new Set(stems(head + " " + body)) });
+        }
+      }
+    } catch (e) { /* базы нет — работаем без неё */ }
+    return kbChunks;
+  }
+  async function retrieve(query) {
+    const q = [...new Set(stems(query))];
+    if (!q.length) return [];
+    const scored = (await getChunks()).map(c => ({ c, s: q.reduce((a, w) => a + (c.set.has(w) ? 1 : 0) + (c.head.has(w) ? 2 : 0), 0) }))
+      .filter(x => x.s > 0).sort((a, b) => b.s - a.s).slice(0, 4);
+    const out = []; let size = 0;
+    for (const { c } of scored) { if (size + c.text.length > 8000) break; size += c.text.length; out.push(c); }
+    return out;
+  }
+  modeSel.value = store.get("gc-mode") || "3dsmax";
+  modeSel.addEventListener("change", () => store.set("gc-mode", modeSel.value, true));
+  searchChk.checked = store.get("gc-search") === "1";
+  searchChk.addEventListener("change", () => store.set("gc-search", searchChk.checked ? "1" : "0", true));
+
+  function bubble(role, text, cls, images, meta, sources) {
     const d = document.createElement("div");
     d.className = "msg " + role + (cls ? " " + cls : "");
     if (images) images.forEach(im => { const i = document.createElement("img"); i.src = "data:" + im.mime + ";base64," + im.data; i.alt = "вложение"; d.appendChild(i); });
@@ -41,6 +88,15 @@
     body.innerHTML = role === "model" && cls !== "error" && cls !== "pending" ? md(text) : esc(text).replace(/\n/g, "<br>");
     d.appendChild(body);
     if (meta) { const m = document.createElement("div"); m.className = "meta"; m.textContent = meta; d.appendChild(m); }
+    if (sources && sources.length) {
+      const s = document.createElement("div"); s.className = "meta"; s.append("Источники: ");
+      sources.forEach((x, i) => {
+        if (!/^https?:\/\//i.test(x.uri || "")) return;
+        const a = document.createElement("a"); a.href = x.uri; a.target = "_blank"; a.rel = "noopener noreferrer";
+        a.textContent = x.title || x.uri; if (i) s.append(" · "); s.appendChild(a);
+      });
+      d.appendChild(s);
+    }
     log.appendChild(d); log.scrollTop = log.scrollHeight;
     return d;
   }
@@ -167,9 +223,20 @@
         parts.push({ text: m.text || "(см. изображение)" });
         return { role: m.role, parts };
       }).reverse();
+      // Системный промпт режима + найденные фрагменты базы знаний
+      let system = "", used = [];
+      if (modeSel.value === "3dsmax") {
+        system = await getSystem();
+        const prevUser = history.slice(0, -1).reverse().find(m => m.role === "user");
+        used = await retrieve(text + " " + (prevUser ? prevUser.text : ""));
+        if (used.length) system += "\n\nСправочные материалы (из базы знаний пользователя):\n" + used.map(c => "### " + c.title + "\n" + c.text).join("\n\n");
+      }
+      const payload = { contents };
+      if (system) payload.systemInstruction = { parts: [{ text: system }] };
+      if (searchChk.checked) payload.tools = [{ google_search: {} }];
       const r = await fetch(API + "models/" + encodeURIComponent(model) + ":generateContent", {
         method: "POST", headers: { "Content-Type": "application/json", "x-goog-api-key": key },
-        body: JSON.stringify({ contents })
+        body: JSON.stringify(payload)
       });
       const d = await r.json().catch(() => ({}));
       if (!r.ok) throw new Error((d.error && d.error.message) || "HTTP " + r.status);
@@ -177,7 +244,9 @@
       const reply = ((cand && cand.content && cand.content.parts) || []).filter(p => !p.thought).map(p => p.text || "").join("").trim();
       if (!reply) throw new Error(d.promptFeedback && d.promptFeedback.blockReason ? "запрос заблокирован: " + d.promptFeedback.blockReason : "пустой ответ модели");
       wait.remove();
-      bubble("model", reply, "", null, d.modelVersion || model);
+      const src = ((cand.groundingMetadata && cand.groundingMetadata.groundingChunks) || []).map(c => c.web).filter(Boolean);
+      const meta = (d.modelVersion || model) + (used.length ? " · база знаний: " + used.length : "");
+      bubble("model", reply, "", null, meta, src);
       history.push({ role: "model", text: reply });
     } catch (err) {
       wait.remove(); history.pop();
